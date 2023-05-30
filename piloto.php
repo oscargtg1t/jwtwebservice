@@ -1,118 +1,106 @@
 <?php
+
 include "config.php";
 include "utils.php";
-var_dump($_POST);
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
 header('Content-Type: application/json');
-require 'vendor/autoload.php';
+require_once 'vendor/autoload.php';
 header("400 Bad Request");
+
 use Firebase\JWT\JWT;
-$secretKey = 'web-token';
+use Firebase\JWT\Key;
+define('key', '2D4A614E635266556A586E3272357538782F413F4428472B4B6250655367566B');
 $expirationHours = 1;
 $dbConn =  connect($db);
 
+//create a function to validate the token received
 function validateToken($token) {
-  try {
-      $decoded = JWT::decode($token, $secretKey, ['HS256']);
-      return $decoded; // Token is valid
-  } catch (Exception $e) {
-      return false; // Token is invalid
-  }
+    try {
+
+        $decoded = JWT::decode($token,new Key(key, 'HS256'));
+        return $decoded;
+    } catch (Exception $e) {
+        return false;
+    }
 }
 
 //metodo GET para obtener dato de piloto
-if ($_SERVER['REQUEST_METHOD'] == 'GET')
-{
-  $token = $_COOKIE['jwt'] ?? null;
-  if ($token && ($decodedToken = validateToken($token))) {
-    if (isset($_GET['licencia'])) {
-      $sql = $dbConn->prepare("SELECT * FROM piloto where licencia=:licencia");
-      $sql->bindValue(':licencia', $_GET['licencia']);
-      $sql->execute();
-      if ($sql->rowCount() == 0) {
-        header("404 Not Found");
-        $request =[
-          'mensaje' => "El no. de licencia no existe en la base de datos"
-        ];
-        echo json_encode($request);
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $token = null;
+    $headers = apache_request_headers();
+
+    if (isset($headers['Authorization'])) {
+        $authorizationHeader = $headers['Authorization'];
+    
+        if (preg_match('/Bearer\s(\S+)/', $authorizationHeader, $matches)) {
+            $token = $matches[1];
+        }
+
+    // Valida el token
+    if ($token&&($decodedToken = validateToken($token))) {
+        // Resto del código para manejar la solicitud GET
+        // Accede a los datos del token decodificado
+        $id = "1";
+        $nombre = "Anibal Jocop";
+
+        // Realiza acciones adicionales con los datos
+
+        // Devuelve una respuesta
+        header('Content-Type: application/json');
+        echo json_encode(array('id' => $id, 'nombre' => $nombre));
         exit();
-      } else {
-        header("200 OK");
-        echo json_encode($sql->fetch(PDO::FETCH_ASSOC));
-        exit();
-      }
-    }
-      else {
-        //Mostrar lista de pilotos
-        $sql = $dbConn->prepare("SELECT * FROM piloto");
-        $sql->execute();
-        $sql->setFetchMode(PDO::FETCH_ASSOC);
-        header("200 OK");
-        echo json_encode( $sql->fetchAll()  );
-        header("404 not found");
-        //$request =[
-        //  'mensaje' => "404: No autorizado"
-        //];
-        //echo json_encode($request);
+    } else {
+        // El token es inválido o está ausente, denegar el acceso
+        http_response_code(401);
+        echo 'Acceso no autorizado. El token está ausente o es inválido.';
         exit();
     }
-} else {
-    // Token is invalid or missing, deny access
-    http_response_code(401);
-    echo 'Unauthorized access I am using JWT.';
+}
 }
 
-}
-
-
-  function generateToken($email, $password) {
+function generateToken($email, $password) {
     // Validate email and password against your userbeneficio table
-    $userId = validateUser($email, $password);
+    $userId = verificarCredenciales($email, $password);
     if (!$userId) {
         return false; // Invalid credentials
     }
-
+    $expirationHours =1;
     $issuedAt = time();
-    $expirationTime = $issuedAt + ($expirationHours * 3600); // Convert hours to seconds
+    $expirationTime = $expirationTime = $issuedAt + 600; // Convert hours to seconds
     $payload = array(
         'user_id' => $userId,
         'exp' => $expirationTime
     );
-    return JWT::encode($payload, $secretKey);
+    return JWT::encode($payload,key,'HS256');
 }
 
-function validateUser($email, $password) {
-  // Implement your validation logic against the userbeneficio table
-  // Return the user ID if the email and password are valid; otherwise, return false
-  // Example:
-  if ($email === 'admin' && $password === '123') {
-      return 1; // Example user ID
-  } else {
-      return false;
-  }
+
+function verificarCredenciales($email, $password) {
+    // Aquí puedes implementar la lógica para verificar las credenciales
+    // por ejemplo, consultando una base de datos o sistema de autenticación
+    
+    // Devuelve `true` si las credenciales son válidas, o `false` si no lo son
+    return ($email === 'usuario@example.com' && $password === '123') ? 1 : false;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  // Check if the required keys are present in the $_POST array
-  if (isset($_POST['email'], $_POST['password'])) {
-      $email = $_POST['email'];
-      $password = $_POST['password'];
-
-      $token = generateToken($email, $password);
-      if ($token) {
-          // Token is generated successfully, send it in the response or set it as a secure cookie
-          echo 'Login successful.';
-          echo 'Token: ' . $token;
-      } else {
-          // Invalid credentials, return an error response
-          http_response_code(401);
-          echo 'Invalid credentials.';
-      }
-  } else {
-      // Missing required keys in the $_POST array
-      http_response_code(400);
-      echo 'Missing parameters.';
-  }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SERVER['REQUEST_URI'] === '/jwtwebservice/piloto.php/login') {
+    // Obtén los datos enviados por el usuario (supongamos que los envía a través de POST)
+    $email = $_POST['email'];
+    $password = $_POST['password'];
+    $token = generateToken($email, $password);
+    if ($token) {
+        // Token is generated successfully, send it in the response or set it as a secure cookie
+        echo 'Login successful.';
+        echo 'Token: ' . $token;
+    } else {
+        // Invalid credentials, return an error response
+        http_response_code(401);
+        echo 'Invalid credentials.';
+    }
+} else {
+    // Missing required keys in the $_POST array
+    http_response_code(400);
+    echo 'Missing parameters.';
 }
 ?>
