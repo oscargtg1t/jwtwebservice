@@ -71,6 +71,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST')
 	 }
 }
 
+//actualiza el vehiculo en cuanto a su estado con base a su placa
+if ($_SERVER['REQUEST_METHOD'] == 'PUT') {
+    parse_str(file_get_contents('php://input'), $input);
+
+    // Verificar si se ha enviado una placa
+    if (isset($input['placa'])) {
+        // Obtener los valores de estado y placa
+        $estado = $input['estado'];
+        $placa = $input['placa'];
+
+        $sql = "UPDATE vehiculo SET estado=:estado WHERE placa=:placa";
+        $statement = $dbConn->prepare($sql);
+        $statement->bindParam(':estado', $estado);
+        $statement->bindParam(':placa', $placa);
+        $statement->execute();
+
+        // Obtener el número de filas afectadas
+        $rowCount = $statement->rowCount();
+
+        if ($rowCount > 0) {
+            $response = [
+                'mensaje' => '200 Ok: vehiculo actualizado'
+            ];
+            http_response_code(200);
+        } else {
+            $response = [
+                'mensaje' => '404 Not Found: vehiculo no encontrado'
+            ];
+            http_response_code(404);
+        }
+
+        echo json_encode($response);
+        exit();
+    } else {
+        $response = [
+            'mensaje' => '400 Bad Request: se requiere la placa del vehiculo'
+        ];
+        http_response_code(400);
+        echo json_encode($response);
+        exit();
+    }
+}
+
+
 /*
 //metodo PUT para Actualizar datos de vehiculo
 if ($_SERVER['REQUEST_METHOD'] == 'PUT')
